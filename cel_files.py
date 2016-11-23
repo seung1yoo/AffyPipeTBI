@@ -1,7 +1,7 @@
 def targetCelSelector(targetCelFile, fh_log):
     celDic = dict()
     for line in open(targetCelFile):
-        celFile = line.strip()
+        celFile = line.strip().split()[0]
         celFile_re = celFile_Renaming(celFile)
         print >> fh_log, '#TARGET_CEL_RENAMING : {0} ---> {1}'\
                 ''.format(celFile, celFile_re)
