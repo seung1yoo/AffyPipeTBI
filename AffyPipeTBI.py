@@ -92,7 +92,7 @@ def apt_genotype_axiom_exe(program, projectDir, analysisFile,
             outDir, analysisName)
     posteriorsFile = '{0}/{1}.snp-posteriors.txt'.format(
                 outDir, analysisName)
-    alleleSummariesFile = '{0}/{1}.allele-summaries.txt'
+    alleleSummariesFile = '{0}/{1}.allele-summaries.txt'\
             ''.format(outDir, analysisName)
     if check_previous(outDir, callFile):
         return callFile, posteriorsFile, alleleSummariesFile
@@ -168,7 +168,7 @@ def apt_format_result_exe(program, projectDir, callFile, annoFile, analysisName)
 
     return pedFile, mapFile
 
-def ped_confirm(program, plink, pedFile, mapFile, projectDir):
+def ped_confirm_exe(program, plink, pedFile, mapFile, projectDir):
     outDir = '{0}/apt-format-result'.format(projectDir)
     prefix = pedFile.split('.ped')[0]
     new_pedFile = '{0}.make-bed.record.ped'.format(prefix)
@@ -189,6 +189,27 @@ def ped_confirm(program, plink, pedFile, mapFile, projectDir):
     fd_popen.close()
     return new_pedFile, new_mapFile
 
+def snpolisher_exe(program, projectDir, snpolisher, rPath, posteriorsFile, callFile, ps2snpFile, species):
+    outDir = '{0}/SNPolisher'.format(projectDir)
+    performanceFile = '{0}/Ps.performance.txt'.format(outDir)
+    if check_previous(outDir, performanceFile):
+        return performanceFile
+    logFile = '{0}/log.SNPolisher'.format(projectDir)
+    cmds = ['python2.7', program,
+            '--snpolisher', snpolisher,
+            '--workingDir', outDir,
+            '--r', rPath,
+            '--posteriorsFile', posteriorsFile,
+            '--callFile', callFile,
+            '--ps2snpFile', ps2snpFile,
+            '--logFile', logFile,
+            '--species', species]
+    print '#COMMAND:{0}'.format('\n  '.join(cmds))
+    fd_popen = subprocess.Popen(cmds,
+            stdout=subprocess.PIPE).stdout
+    data = fd_popen.read().strip()
+    fd_popen.close()
+    return performanceFile
 
 def main(args):
     #print args
@@ -247,10 +268,23 @@ def main(args):
             'plink')
     program = check_script(configDic['affyPipeTBI_path'],
             'ped_confirm.py')
-    pedFile, mapFile = ped_confirm(program, plink,
+    pedFile, mapFile = ped_confirm_exe(program, plink,
             pedFile, mapFile, configDic['project_home_path'])
 
     ## SNPolisher
+    program = check_script(configDic['affyPipeTBI_path'],
+            'SNPolisher.py')
+    performanceFile = snpolisher_exe(program, 
+                   configDic['project_home_path'],
+                   configDic['SNPolisher_path'],
+                   configDic['R_path'],
+                   posteriorsFile_gt1,
+                   callFile_gt1,
+                   configDic['ps2snp-file'],
+                   configDic['species'])
+
+            
+
 
 
 
