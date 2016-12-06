@@ -43,7 +43,7 @@ def cel_files_exe(program, targetCelFile, rawCelDir, projectDir):
     mycellistfile = '{0}/mycellistfile.txt'.format(
             linkedCelDir)
     if check_previous(linkedCelDir, mycellistfile):
-        return mycellistfile
+        return mycellistfile, linkedCelDir
 
     logFile = '{0}/log.cel_files'.format(projectDir)
     cmds = ['python2.7', program,
@@ -57,7 +57,7 @@ def cel_files_exe(program, targetCelFile, rawCelDir, projectDir):
     data = fd_popen.read().strip()
     fd_popen.close()
 
-    return mycellistfile
+    return mycellistfile, linkedCelDir
 
 def apt_geno_qc_exe(program, projectDir, analysisFile,
         xmlFile, analysisName, mycelFile):
@@ -84,18 +84,18 @@ def apt_geno_qc_exe(program, projectDir, analysisFile,
 
     return reportFile
 
-def apt_genotype_axiom_exe(program, projectDir, analysisFile,
-        xmlFile, analysisName, chipType, mycelFile):
+def apt_genotype_axiom_exe(program, projectDir, analysisFile, xmlFile, analysisName, chipType, mycelFile):
     outDir = '{0}/apt-genotype-axiom'.format(projectDir)
-
     callFile = '{0}/{1}.calls.txt'.format(
             outDir, analysisName)
     posteriorsFile = '{0}/{1}.snp-posteriors.txt'.format(
                 outDir, analysisName)
-    alleleSummariesFile = '{0}/{1}.allele-summaries.txt'\
-            ''.format(outDir, analysisName)
+    alleleSummariesFile = '{0}/{1}.allele-summaries.txt'.format(
+            outDir, analysisName)
+    reportFile = '{0}/{1}.report.txt'.format(
+            outDir, analysisName)
     if check_previous(outDir, callFile):
-        return callFile, posteriorsFile, alleleSummariesFile
+        return callFile, posteriorsFile, alleleSummariesFile, reportFile
 
     logFile = '{0}/log.{1}'.format(projectDir,
             analysisName)
@@ -131,7 +131,7 @@ def apt_genotype_axiom_exe(program, projectDir, analysisFile,
     data = fd_popen.read().strip()
     fd_popen.close()
 
-    return callFile, posteriorsFile, alleleSummariesFile
+    return callFile, posteriorsFile, alleleSummariesFile, reportFile
 
 def apt_format_result_exe(program, projectDir, callFile, annoFile, analysisName):
     outDir = '{0}/apt-format-result'.format(projectDir)
@@ -139,8 +139,10 @@ def apt_format_result_exe(program, projectDir, callFile, annoFile, analysisName)
             outDir, analysisName)
     mapFile = '{0}/{1}.plink.map'.format(
             outDir, analysisName)
+    vcfFile = '{0}/{1}.vcf'.format(
+            outDir, analysisName)
     if check_previous(outDir, pedFile):
-        return pedFile, mapFile
+        return pedFile, mapFile, vcfFile
     logFile = '{0}/log.apt-format-result.{1}'.format(
             projectDir, analysisName)
 
@@ -157,16 +159,14 @@ def apt_format_result_exe(program, projectDir, callFile, annoFile, analysisName)
                 outDir, analysisName),
             '--export-txt-file', '{0}/{1}.txt'.format(
                 outDir, analysisName),
-            '--export-call-format', 'base_call']
-            #'--annotation-columns', 'Affy_SNP_ID,dbSNP_RS_ID,dbSNP_Loctype,Chromosome,Physical_Position,Position_End,Strand,Allele_A,Allele_B,Ref_Allele,Alt_Allele,Associated_Gene']
-
+            '--export-call-format', 'base_call'] #'--annotation-columns', 'Affy_SNP_ID,dbSNP_RS_ID,dbSNP_Loctype,Chromosome,Physical_Position,Position_End,Strand,Allele_A,Allele_B,Ref_Allele,Alt_Allele,Associated_Gene'] 
     print '#COMMAND:{0}'.format('\n  '.join(cmds))
     fd_popen = subprocess.Popen(cmds,
             stdout=subprocess.PIPE).stdout
     data = fd_popen.read().strip()
     fd_popen.close()
 
-    return pedFile, mapFile
+    return pedFile, mapFile, vcfFile
 
 def ped_confirm_exe(program, plink, pedFile, mapFile, projectDir):
     outDir = '{0}/apt-format-result'.format(projectDir)
@@ -211,6 +211,25 @@ def snpolisher_exe(program, projectDir, snpolisher, rPath, posteriorsFile, callF
     fd_popen.close()
     return performanceFile
 
+def tbi_uploader_exe(program, projectDir, resultDir, linkedCelDir, reportFile_qc, reportFile_gt1, callFile, vcfFile, pedFile, mapFile, project_cel_file):
+    logFile = '{0}/log.tbi_uploader'.format(projectDir)
+    cmds = ['python2.7', program,
+            '--outDir', resultDir,
+            '--celFilesDir', linkedCelDir,
+            '--qcReports', reportFile_qc, reportFile_gt1,
+            '--genotypes', callFile, vcfFile,
+            '--plinks', pedFile, mapFile,
+            '--celFile', project_cel_file,
+            '--logFile', logFile]
+    print '#COMMAND:{0}'.format(' '.join(cmds))
+    fd_popen = subprocess.Popen(cmds,
+            stdout=subprocess.PIPE).stdout
+    data = fd_popen.read().strip()
+    fd_popen.close()
+
+
+
+
 def main(args):
     #print args
     configDic = config_file_parser(args.config)
@@ -218,7 +237,7 @@ def main(args):
     ## cel_files execute
     program = check_script(configDic['affyPipeTBI_path'],
             'cel_files.py')
-    mycellistfile = cel_files_exe(program,
+    mycellistfile, linkedCelDir = cel_files_exe(program,
             configDic['project_cel_files'],
             configDic['raw_cel_path'],
             configDic['project_home_path'])
@@ -236,7 +255,7 @@ def main(args):
     ## Genotype Calling (apt-genotype-axiom)
     program = check_script(configDic['apt_path'],
             'apt-genotype-axiom')
-    callFile_gt1, posteriorsFile_gt1, alleleSummariesFile_gt1 = apt_genotype_axiom_exe(program,
+    callFile_gt1, posteriorsFile_gt1, alleleSummariesFile_gt1, reportFile_gt1 = apt_genotype_axiom_exe(program,
             configDic['project_home_path'],
             configDic['analysis-files-path'],
             configDic['xml-file-GT1'],
@@ -247,7 +266,7 @@ def main(args):
     ## Signature SNPs (apt-genotype-axiom)
     program = check_script(configDic['apt_path'],
             'apt-genotype-axiom')
-    callFile_ss1, posteriorsFile_ss1, alleleSummariesFile_ss1 = apt_genotype_axiom_exe(program,
+    callFile_ss1, posteriorsFile_ss1, alleleSummariesFile_ss1, reportFile_ss1 = apt_genotype_axiom_exe(program,
             configDic['project_home_path'],
             configDic['analysis-files-path'],
             configDic['xml-file-SS1'],
@@ -258,7 +277,7 @@ def main(args):
     ## Make PLINK, VCF, TXT files (apt-format-result)
     program = check_script(configDic['apt_path'],
             'apt-format-result')
-    pedFile, mapFile = apt_format_result_exe(program,
+    pedFile, mapFile, vcfFile = apt_format_result_exe(program,
             configDic['project_home_path'],
             callFile_gt1,
             configDic['annotation-file'],
@@ -274,7 +293,7 @@ def main(args):
     ## SNPolisher
     program = check_script(configDic['affyPipeTBI_path'],
             'SNPolisher.py')
-    performanceFile = snpolisher_exe(program, 
+    performanceFile = snpolisher_exe(program,
                    configDic['project_home_path'],
                    configDic['SNPolisher_path'],
                    configDic['R_path'],
@@ -283,12 +302,17 @@ def main(args):
                    configDic['ps2snp-file'],
                    configDic['species'])
 
-            
-
-
-
-
-
+    ## Uploader
+    program = check_script(configDic['affyPipeTBI_path'],
+            'tbi_uploader.py')
+    tbi_uploader_exe(program,
+            configDic['project_home_path'],
+            configDic['project_result'],
+            linkedCelDir,
+            qc_reportFile, reportFile_gt1,
+            callFile_gt1, vcfFile,
+            pedFile, mapFile,
+            configDic['project_cel_files'])
 
 
 
