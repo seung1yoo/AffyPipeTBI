@@ -141,8 +141,10 @@ def apt_format_result_exe(program, projectDir, callFile, annoFile, analysisName)
             outDir, analysisName)
     vcfFile = '{0}/{1}.vcf'.format(
             outDir, analysisName)
+    txtFile = '{0}/{1}.txt'.format(
+            outDir, analysisName)
     if check_previous(outDir, pedFile):
-        return pedFile, mapFile, vcfFile
+        return pedFile, mapFile, vcfFile, txtFile
     logFile = '{0}/log.apt-format-result.{1}'.format(
             projectDir, analysisName)
 
@@ -166,7 +168,7 @@ def apt_format_result_exe(program, projectDir, callFile, annoFile, analysisName)
     data = fd_popen.read().strip()
     fd_popen.close()
 
-    return pedFile, mapFile, vcfFile
+    return pedFile, mapFile, vcfFile, txtFile
 
 def ped_confirm_exe(program, plink, pedFile, mapFile, projectDir):
     outDir = '{0}/apt-format-result'.format(projectDir)
@@ -227,9 +229,6 @@ def tbi_uploader_exe(program, projectDir, resultDir, linkedCelDir, reportFile_qc
     data = fd_popen.read().strip()
     fd_popen.close()
 
-
-
-
 def main(args):
     #print args
     configDic = config_file_parser(args.config)
@@ -277,7 +276,7 @@ def main(args):
     ## Make PLINK, VCF, TXT files (apt-format-result)
     program = check_script(configDic['apt_path'],
             'apt-format-result')
-    pedFile, mapFile, vcfFile = apt_format_result_exe(program,
+    pedFile, mapFile, vcfFile, txtFile = apt_format_result_exe(program,
             configDic['project_home_path'],
             callFile_gt1,
             configDic['annotation-file'],
@@ -310,7 +309,7 @@ def main(args):
             configDic['project_result'],
             linkedCelDir,
             qc_reportFile, reportFile_gt1,
-            callFile_gt1, vcfFile,
+            txtFile, vcfFile,
             pedFile, mapFile,
             configDic['project_cel_files'])
 
