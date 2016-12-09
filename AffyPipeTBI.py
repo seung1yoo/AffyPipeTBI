@@ -229,7 +229,7 @@ def main(args):
             configDic['project_cel_files'],
             configDic['raw_cel_path'],
             configDic['project_home_path'])
-    tbi_uploader.cel(configDic['project_cel_files'], linkedCelDir,
+    tbi_uploader.cel(idConvertedFile, linkedCelDir,
             '{0}/00_CEL_files'.format(configDic['project_result']))
 
     ## QC (apt-geno-qc)

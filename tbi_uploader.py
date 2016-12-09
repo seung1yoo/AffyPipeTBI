@@ -1,19 +1,19 @@
 import os
 import glob
 
-def raw2sample_idDicMaker(mycellistfile):
+def raw2sample_idDicMaker(idConvertedFile):
     idDic = dict()
-    for line in open(mycellistfile):
+    for line in open(idConvertedFile):
         items = line.strip().split()
-        idDic.setdefault(items[0], items[1])
+        idDic.setdefault(items[1].split('.CEL')[0], items[2])
     return idDic
 
-def cel(mycellistfile, linkedCelDir, targetDir):
+def cel(idConvertedFile, linkedCelDir, targetDir):
     if not os.path.isdir(targetDir):
-        os.mkdir(targetDir)
-    idDic = raw2sample_idDicMaker(mycellistfile)
+        os.makedirs(targetDir)
+    idDic = raw2sample_idDicMaker(idConvertedFile)
     for aCelFile in glob.glob('{0}/*.CEL'.format(linkedCelDir)):
-        cel_name = aCelFile.split('/')[-1].split('.')[0]
+        cel_name = aCelFile.split('/')[-1].split('.CEL')[0]
         sample_name = idDic[cel_name]
         symFile = '{0}/{1}.CEL'.format(targetDir, sample_name)
         try:
