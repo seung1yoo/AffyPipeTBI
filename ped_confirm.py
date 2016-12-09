@@ -11,7 +11,7 @@ def main(args):
             '--no-fid --no-parents --no-pheno --no-sex']
     print >> log_out, ' '.join(cmds)
     os.system(' '.join(cmds))
-    
+
     cmds = [args.plink,
             '--bfile', '{0}.make-bed'.format(args.prefix),
             '--recode',
