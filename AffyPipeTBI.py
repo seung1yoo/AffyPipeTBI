@@ -29,9 +29,9 @@ def check_previous_run(outdir, checkfile):
         return 0
     else:
         if os.path.isfile(checkfile):
-            print '#CHECK_PREVIOUS_RUN: {0} is alread exist.'.format(checkfile)
-            print '#CHECK_PREVIOUS_RUN: If you want re-run, delete {0} and re-run.'.format(checkfile)
-            print '#CHECK_PREVIOUS_RUN: This step is jumped.'
+            print '#CHECK_PREVIOUS_RUN (1/3) : {0} is alread exist.'.format(checkfile)
+            print '#CHECK_PREVIOUS_RUN (2/3) : If you want re-run, delete {0} and re-run.'.format(checkfile)
+            print '#CHECK_PREVIOUS_RUN (3/3) : This step is jumped.'
             return 1
         else:
             return 0
@@ -39,12 +39,13 @@ def check_previous_run(outdir, checkfile):
     return 0
 
 def cel_collector(program, targetCelFile, rawCelDir, projectDir):
-    mycellistfile = '{0}/mycellistfile.txt'.format(linkedCelDir)
     linkedCelDir = '{0}/cel_files'.format(projectDir)
+    mycellistfile = '{0}/mycellistfile.txt'.format(linkedCelDir)
+    idConvertedFile = '{0}/convertedID.xls'.format(linkedCelDir)
     logFile = '{0}/log.cel_files'.format(projectDir)
 
     if check_previous_run(linkedCelDir, mycellistfile):
-        return mycellistfile, linkedCelDir
+        return mycellistfile, linkedCelDir, idConvertedFile
 
     cmds = ['python2.7', program,
             '--targetCelFile', targetCelFile,
@@ -56,7 +57,7 @@ def cel_collector(program, targetCelFile, rawCelDir, projectDir):
     data = fd_popen.read().strip()
     fd_popen.close()
 
-    return mycellistfile, linkedCelDir
+    return mycellistfile, linkedCelDir, idConvertedFile
 
 def apt_geno_qc_exe(program, projectDir, analysisFile, xmlFile, analysisName, mycelFile):
     outDir = '{0}/apt-geno-qc'.format(projectDir)
@@ -220,13 +221,16 @@ def main(args):
     #print args
     configDic = config_file_parser(args.config)
 
-    ## cel_files execute
+    ## cel_collector execute
     program = check_script(configDic['affyPipeTBI_path'],
             'cel_collector.py')
-    mycellistfile, linkedCelDir = cel_collector(program,
+    mycellistfile, linkedCelDir, idConvertedFile = cel_collector(
+            program,
             configDic['project_cel_files'],
             configDic['raw_cel_path'],
             configDic['project_home_path'])
+    tbi_uploader.cel(configDic['project_cel_files'], linkedCelDir,
+            '{0}/00_CEL_files'.format(configDic['project_result']))
 
     ## QC (apt-geno-qc)
     program = check_script(configDic['apt_path'],
@@ -237,6 +241,8 @@ def main(args):
             configDic['xml-file-QC1'],
             configDic['analysis-name-QC1'],
             mycellistfile)
+    qc_reportFile = tbi_idConvertor.cel_col(qc_reportFile, configDic['project_id'], '\t', 0, idConvertedFile)
+    tbi_uploader.aFileSymlinker(qc_reportFile, 'Axiom.QC.report.txt', '{0}/01_QC_report'.format(configDic['project_result']))
 
     ## Genotype Calling (apt-genotype-axiom)
     program = check_script(configDic['apt_path'],
@@ -248,6 +254,8 @@ def main(args):
             configDic['analysis-name-GT1'],
             configDic['chip-type'],
             mycellistfile)
+    reportFile_gt1 = tbi_idConvertor.cel_col(reportFile_gt1, configDic['project_id'], '\t', 0, idConvertedFile)
+    tbi_uploader.aFileSymlinker(reportFile_gt1, 'Genotype.QC.report.txt', '{0}/01_QC_report'.format(configDic['project_result']))
 
     ## Signature SNPs (apt-genotype-axiom)
     program = check_script(configDic['apt_path'],
@@ -268,6 +276,15 @@ def main(args):
             callFile_gt1,
             configDic['annotation-file'],
             configDic['analysis-name-GT1'])
+    vcfFile = tbi_idConvertor.cel_title(vcfFile, configDic['project_id'], '\t', str('#CHROM'), idConvertedFile)
+    vcfFile = tbi_idConvertor.snpId_col(vcfFile, configDic['project_id'], '\t', 2, configDic['anno-file-csv'], 2)
+    tbi_uploader.aFileSymlinker(vcfFile, 'Genotype.vcf', '{0}/02_Genotype'.format(configDic['project_result']))
+
+    txtFile = tbi_idConvertor.cel_title(txtFile, configDic['project_id'], '\t', str('probeset_id'), idConvertedFile)
+    txtFile = tbi_idConvertor.snpId_col(txtFile, configDic['project_id'], '\t', 0, configDic['anno-file-csv'], 2)
+    tbi_uploader.aFileSymlinker(txtFile, 'Genotype.txt', '{0}/02_Genotype'.format(configDic['project_result']))
+
+
 
     plink = check_script(configDic['plink_path'],
             'plink')
@@ -275,6 +292,13 @@ def main(args):
             'ped_confirm.py')
     pedFile, mapFile = ped_confirm_exe(program, plink,
             pedFile, mapFile, configDic['project_home_path'])
+
+    mapFile = tbi_idConvertor.snpId_col(mapFile, configDic['project_id'], '\t', 1, configDic['anno-file-csv'], 2)
+    tbi_uploader.aFileSymlinker(mapFile, 'Genotype.map', '{0}/03_Plink'.format(configDic['project_result']))
+
+    pedFile = tbi_idConvertor.cel_col(pedFile, configDic['project_id'], ' ', 0, idConvertedFile)
+    pedFile = tbi_idConvertor.cel_col(pedFile, configDic['project_id'], ' ', 1, idConvertedFile)
+    tbi_uploader.aFileSymlinker(pedFile, 'Genotype.ped', '{0}/03_Plink'.format(configDic['project_result']))
 
     ## SNPolisher
     program = check_script(configDic['affyPipeTBI_path'],
@@ -288,23 +312,42 @@ def main(args):
                    configDic['ps2snp-file'],
                    configDic['species'])
 
-    ## Uploader
-    program = check_script(configDic['affyPipeTBI_path'],
-            'tbi_uploader.py')
-    tbi_uploader_exe(program,
-            configDic['project_home_path'],
-            configDic['project_result'],
-            linkedCelDir,
-            qc_reportFile, reportFile_gt1,
-            txtFile, vcfFile,
-            pedFile, mapFile,
-            configDic['project_cel_files'])
+    ## Part of Results list
+    print '##### RESULTs list #####'
+    print '## CEL collector ##'
+    print '#RESULTs : mycellistfile : {0}'.format(mycellistfile)
+    print '#RESULTs : linkedCelDir : {0}'.format(linkedCelDir)
+    print '## QC ##'
+    print '#RESULTs : qc_reportFile : {0}'.format(qc_reportFile)
+    print '## CALLING ##'
+    print '#RESULTs : callFile_gt1 : {0}'.format(callFile_gt1)
+    print '#RESULTs : posteriorsFile_gt1 : {0}'.format(posteriorsFile_gt1)
+    print '#RESULTs : alleleSummariesFile_gt1 : {0}'.format(alleleSummariesFile_gt1)
+    print '#RESULTs : reportFile_gt1 : {0}'.format(reportFile_gt1)
+    print '#RESULTs : callFile_ss1 : {0}'.format(callFile_ss1)
+    print '#RESULTs : posteriorsFile_ss1 : {0}'.format(posteriorsFile_ss1)
+    print '#RESULTs : alleleSummariesFile_ss1 : {0}'.format(alleleSummariesFile_ss1)
+    print '#RESULTs : reportFile_ss1 : {0}'.format(reportFile_ss1)
+    print '## FORMATTING ##'
+    print '#RESULTs : pedFile : {0}'.format(pedFile)
+    print '#RESULTs : mapFile : {0}'.format(mapFile)
+    print '#RESULTs : vcfFile : {0}'.format(vcfFile)
+    print '#RESULTs : txtFile : {0}'.format(txtFile)
+    print '## SNPolisher ##'
+    print '#RESULTs : performanceFile : {0}'.format(performanceFile)
+
+    print '################################'
+    print '# AffyPipeTBI is done          #'
+    print '# seungil.yoo@theragenetex.com #'
+    print '################################'
 
 if __name__=='__main__':
     import os
     import sys
     import subprocess
     import argparse
+    import tbi_uploader
+    import tbi_idConvertor
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config', help='config file name',
             default='/BiO/BioPeople/siyoo/Axiom/Scripts/AffyPipeTBI.conf')

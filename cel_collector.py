@@ -2,10 +2,11 @@ def targetCelSelector(targetCelFile, fh_log):
     celDic = dict()
     for line in open(targetCelFile):
         celFile = line.strip().split('\t')[0]
+        sampleName = line.strip().split('\t')[1]
         celFile_re = celFile_Renaming(celFile)
         print >> fh_log, '#TARGET_CEL_RENAMING : {0} ---> {1}'\
                 ''.format(celFile, celFile_re)
-        celDic.setdefault(celFile_re, celFile)
+        celDic.setdefault('{0}|{1}'.format(celFile_re, sampleName), celFile)
     return celDic
 
 def celFile_Renaming(celFile):
@@ -35,13 +36,17 @@ def symbolicLinking(targetCelDic, rawCelDic, linkedCelDir):
         os.mkdir(linkedCelDir)
 
     cmdDic = dict()
-    for t_celFile, t_celFile_ori in targetCelDic.iteritems():
+    out_1 = open('{0}/convertedID.xls'.format(linkedCelDir), 'w')
+    for t_celFile_pre, t_celFile_ori in targetCelDic.iteritems():
+        t_celFile, sampleName = t_celFile_pre.split('|')
+        out_1.write('{0}\t{1}\t{2}\n'.format(t_celFile_ori, t_celFile, sampleName))
         if t_celFile in rawCelDic:
             cmdDic.setdefault('cmd', {}).setdefault(t_celFile, [rawCelDic[t_celFile],
                     '{0}/{1}'.format(linkedCelDir, t_celFile)])
         else:
             cmdDic.setdefault('error', {}).setdefault(t_celFile,
                     '{0} target cel file is not in rawCelDir'.format(t_celFile))
+    out_1.close()
 
     for tag, celFileDic in cmdDic.iteritems():
         for celFile, cmd in celFileDic.iteritems():
@@ -56,7 +61,7 @@ def symbolicLinking(targetCelDic, rawCelDic, linkedCelDir):
 
     return cmdDic
 
-def createcelfile_sh(cmdDic, linkedCelDir):
+def createcelfile_sh(cmdDic, linkedCelDir, targetCelFile):
     out = open('{0}/mycellistfile.txt'.format(linkedCelDir), 'w')
     out.write('cel_files\n')
     for tag, celFileDic in cmdDic.iteritems():
@@ -77,7 +82,7 @@ def main(args):
             ''.format(datetime.today(), len(rawCelDic))
 
     cmdDic = symbolicLinking(targetCelDic, rawCelDic, args.linkedCelDir)
-    createcelfile_sh(cmdDic, args.linkedCelDir)
+    createcelfile_sh(cmdDic, args.linkedCelDir, args.targetCelFile)
 
 if __name__=='__main__':
     import argparse
