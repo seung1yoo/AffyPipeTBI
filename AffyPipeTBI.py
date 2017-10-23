@@ -82,8 +82,33 @@ def apt_geno_qc_exe(program, projectDir, analysisFile, xmlFile, analysisName, my
 
     return reportFile
 
-def apt_genotype_axiom_exe(program, projectDir, analysisFile, xmlFile, analysisName, chipType, mycelFile):
-    outDir = '{0}/apt-genotype-axiom'.format(projectDir)
+def dqc_filter(program, qc_reportFile, idConvertedFile, linkedCelDir, projectDir, dqc_cut):
+    dqc_Dir = '{0}/dqc_filter'.format(projectDir)
+    mycellistfile_dqc = '{0}/mycellistfile.dqc.txt'.format(dqc_Dir)
+    logFile = '{0}/log.dqc_filter'.format(projectDir)
+
+    if check_previous_run(dqc_Dir, mycellistfile_dqc):
+        return mycellistfile_dqc
+
+    cmds = ['python2.7', program,
+            '--qc-report', qc_reportFile,
+            '--idConvert', idConvertedFile,
+            '--linkedCelDir', linkedCelDir,
+            '--dqc-cut', dqc_cut,
+            '--outFile', mycellistfile_dqc,
+            '--logFile', logFile]
+    print '#COMMAND:{0}'.format(' '.join(cmds))
+    fd_popen = subprocess.Popen(cmds, stdout=subprocess.PIPE).stdout
+    data = fd_popen.read().strip()
+    fd_popen.close()
+
+    return mycellistfile_dqc
+
+def apt_genotype_axiom_exe(program, projectDir, analysisFile, xmlFile, analysisName, chipType, mycelFile, analysisType='MAIN'):
+    if analysisType.startswith('PRE'):
+        outDir = '{0}/apt-genotype-axiom_PRE'.format(projectDir)
+    else:
+        outDir = '{0}/apt-genotype-axiom'.format(projectDir)
     callFile = '{0}/{1}.calls.txt'.format(outDir, analysisName)
     posteriorsFile = '{0}/{1}.snp-posteriors.txt'.format(outDir, analysisName)
     alleleSummariesFile = '{0}/{1}.allele-summaries.txt'.format(outDir, analysisName)
@@ -125,6 +150,27 @@ def apt_genotype_axiom_exe(program, projectDir, analysisFile, xmlFile, analysisN
     fd_popen.close()
 
     return callFile, posteriorsFile, alleleSummariesFile, reportFile
+
+def callrate_filter(program, reportFile, linkedCelDir, projectDir, callrate_cut):
+    callrate_Dir = '{0}/callrate_filter'.format(projectDir)
+    mycellistfile_cr = '{0}/mycellistfile.cr.txt'.format(callrate_Dir)
+    logFile = '{0}/log.callrate_filter'.format(projectDir)
+
+    if check_previous_run(callrate_Dir, mycellistfile_cr):
+        return mycellistfile_cr
+
+    cmds = ['python2.7', program,
+            '--reportFile', reportFile,
+            '--linkedCelDir', linkedCelDir,
+            '--callrate_cut', callrate_cut,
+            '--mycellistfile_cr', mycellistfile_cr,
+            '--logFile', logFile]
+    print '#COMMAND:{0}'.format(' '.join(cmds))
+    fd_popen = subprocess.Popen(cmds, stdout=subprocess.PIPE).stdout
+    data = fd_popen.read().strip()
+    fd_popen.close()
+
+    return mycellistfile_cr
 
 def apt_format_result_exe(program, projectDir, callFile, annoFile, analysisName):
     outDir = '{0}/apt-format-result'.format(projectDir)
@@ -201,22 +247,6 @@ def snpolisher_exe(program, projectDir, snpolisher, rPath, posteriorsFile, callF
 
     return performanceFile
 
-def tbi_uploader_exe(program, projectDir, resultDir, linkedCelDir, reportFile_qc, reportFile_gt1, callFile, vcfFile, pedFile, mapFile, project_cel_file):
-    logFile = '{0}/log.tbi_uploader'.format(projectDir)
-
-    cmds = ['python2.7', program,
-            '--outDir', resultDir,
-            '--celFilesDir', linkedCelDir,
-            '--qcReports', reportFile_qc, reportFile_gt1,
-            '--genotypes', callFile, vcfFile,
-            '--plinks', pedFile, mapFile,
-            '--celFile', project_cel_file,
-            '--logFile', logFile]
-    print '#COMMAND:{0}'.format(' '.join(cmds))
-    fd_popen = subprocess.Popen(cmds, stdout=subprocess.PIPE).stdout
-    data = fd_popen.read().strip()
-    fd_popen.close()
-
 def main(args):
     #print args
     configDic = config_file_parser(args.config)
@@ -244,6 +274,16 @@ def main(args):
     qc_reportFile = tbi_idConvertor.cel_col(qc_reportFile, configDic['project_id'], '\t', 0, idConvertedFile)
     tbi_uploader.aFileSymlinker(qc_reportFile, 'Axiom.QC.report.txt', '{0}/01_QC_report'.format(configDic['project_result']))
 
+    ## DQC filter ()
+    program = check_script(configDic['affyPipeTBI_path'],
+            'dqc_filter.py')
+    mycellistfile_dqc = dqc_filter(program,
+            qc_reportFile,
+            idConvertedFile,
+            linkedCelDir,
+            configDic['project_home_path'],
+            configDic['dqc_cut'])
+
     ## Genotype Calling (apt-genotype-axiom)
     program = check_script(configDic['apt_path'],
             'apt-genotype-axiom')
@@ -253,7 +293,26 @@ def main(args):
             configDic['xml-file-GT1'],
             configDic['analysis-name-GT1'],
             configDic['chip-type'],
-            mycellistfile)
+            mycellistfile_dqc,
+            'PRE')
+    ## Call_rate filter
+    program = check_script(configDic['affyPipeTBI_path'],
+            'callrate_filter.py')
+    mycellistfile_cr = callrate_filter(program,
+            reportFile_gt1,
+            linkedCelDir,
+            configDic['project_home_path'],
+            configDic['callrate_cut'])
+    ## Genotype Calling (apt-genotype-axiom)
+    program = check_script(configDic['apt_path'],
+            'apt-genotype-axiom')
+    callFile_gt1, posteriorsFile_gt1, alleleSummariesFile_gt1, reportFile_gt1 = apt_genotype_axiom_exe(program,
+            configDic['project_home_path'],
+            configDic['analysis-files-path'],
+            configDic['xml-file-GT1'],
+            configDic['analysis-name-GT1'],
+            configDic['chip-type'],
+            mycellistfile_cr)
     reportFile_gt1 = tbi_idConvertor.cel_col(reportFile_gt1, configDic['project_id'], '\t', 0, idConvertedFile)
     tbi_uploader.aFileSymlinker(reportFile_gt1, 'Genotype.QC.report.txt', '{0}/01_QC_report'.format(configDic['project_result']))
 
@@ -266,7 +325,7 @@ def main(args):
             configDic['xml-file-SS1'],
             configDic['analysis-name-SS1'],
             configDic['chip-type'],
-            mycellistfile)
+            mycellistfile_cr)
 
     ## Make PLINK, VCF, TXT files (apt-format-result)
     program = check_script(configDic['apt_path'],
@@ -276,6 +335,7 @@ def main(args):
             callFile_gt1,
             configDic['annotation-file'],
             configDic['analysis-name-GT1'])
+
     vcfFile = tbi_idConvertor.cel_title(vcfFile, configDic['project_id'], '\t', str('#CHROM'), idConvertedFile)
     vcfFile = tbi_idConvertor.snpId_col(vcfFile, configDic['project_id'], '\t', 2, configDic['anno-file-csv'], 2)
     tbi_uploader.aFileSymlinker(vcfFile, 'Genotype.vcf', '{0}/02_Genotype'.format(configDic['project_result']))
@@ -284,14 +344,9 @@ def main(args):
     txtFile = tbi_idConvertor.snpId_col(txtFile, configDic['project_id'], '\t', 0, configDic['anno-file-csv'], 2)
     tbi_uploader.aFileSymlinker(txtFile, 'Genotype.txt', '{0}/02_Genotype'.format(configDic['project_result']))
 
-
-
-    plink = check_script(configDic['plink_path'],
-            'plink')
-    program = check_script(configDic['affyPipeTBI_path'],
-            'ped_confirm.py')
-    pedFile, mapFile = ped_confirm_exe(program, plink,
-            pedFile, mapFile, configDic['project_home_path'])
+    plink = check_script(configDic['plink_path'], 'plink')
+    program = check_script(configDic['affyPipeTBI_path'], 'ped_confirm.py')
+    pedFile, mapFile = ped_confirm_exe(program, plink, pedFile, mapFile, configDic['project_home_path'])
 
     mapFile = tbi_idConvertor.snpId_col(mapFile, configDic['project_id'], '\t', 1, configDic['anno-file-csv'], 2)
     tbi_uploader.aFileSymlinker(mapFile, 'Genotype.map', '{0}/03_Plink'.format(configDic['project_result']))

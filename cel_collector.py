@@ -1,3 +1,8 @@
+import time
+from datetime import datetime
+import subprocess
+import os
+
 def targetCelSelector(targetCelFile, fh_log):
     celDic = dict()
     for line in open(targetCelFile):
@@ -86,10 +91,6 @@ def main(args):
 
 if __name__=='__main__':
     import argparse
-    import time
-    from datetime import datetime
-    import subprocess
-    import os
     parser = argparse.ArgumentParser()
     parser.add_argument('-tcf', '--targetCelFile',
             help='CEL file list.',
