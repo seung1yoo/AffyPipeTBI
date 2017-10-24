@@ -104,11 +104,8 @@ def dqc_filter(program, qc_reportFile, idConvertedFile, linkedCelDir, projectDir
 
     return mycellistfile_dqc
 
-def apt_genotype_axiom_exe(program, projectDir, analysisFile, xmlFile, analysisName, chipType, mycelFile, analysisType='MAIN'):
-    if analysisType.startswith('PRE'):
-        outDir = '{0}/apt-genotype-axiom_PRE'.format(projectDir)
-    else:
-        outDir = '{0}/apt-genotype-axiom'.format(projectDir)
+def apt_genotype_axiom_exe(program, projectDir, analysisFile, xmlFile, analysisName, chipType, mycelFile, analysisType):
+    outDir = '{0}/apt-genotype-axiom_{1}'.format(projectDir, analysisType)
     callFile = '{0}/{1}.calls.txt'.format(outDir, analysisName)
     posteriorsFile = '{0}/{1}.snp-posteriors.txt'.format(outDir, analysisName)
     alleleSummariesFile = '{0}/{1}.allele-summaries.txt'.format(outDir, analysisName)
@@ -118,13 +115,14 @@ def apt_genotype_axiom_exe(program, projectDir, analysisFile, xmlFile, analysisN
     if check_previous_run(outDir, callFile):
         return callFile, posteriorsFile, alleleSummariesFile, reportFile
 
-    if analysisName in ['AxiomGT1']:
+    if analysisName in ['AxiomGT1_1', 'AxiomGT1_2']:
         cmds = [program,
                 '--analysis-files-path', analysisFile,
                 '--arg-file', xmlFile,
                 '--out-dir', outDir,
                 '--cel-files', mycelFile,
                 '--log-file', logFile,
+                '--analysis-name', analysisName,
                 '--snp-posteriors-output',
                 '--snp-posteriors-output-file', posteriorsFile,
                 '--allele-summaries',
@@ -139,6 +137,7 @@ def apt_genotype_axiom_exe(program, projectDir, analysisFile, xmlFile, analysisN
                 '--out-dir', outDir,
                 '--cel-files', mycelFile,
                 '--log-file', logFile,
+                '--analysis-name', analysisName,
                 '--dual-channel-normalization']
     else:
         print '#ERROR:check ther analysis-name in configure file.'
@@ -290,11 +289,11 @@ def main(args):
     callFile_gt1, posteriorsFile_gt1, alleleSummariesFile_gt1, reportFile_gt1 = apt_genotype_axiom_exe(program,
             configDic['project_home_path'],
             configDic['analysis-files-path'],
-            configDic['xml-file-GT1'],
-            configDic['analysis-name-GT1'],
+            configDic['xml-file-GT1_1'],
+            configDic['analysis-name-GT1_1'],
             configDic['chip-type'],
             mycellistfile_dqc,
-            'PRE')
+            'STEP1')
     ## Call_rate filter
     program = check_script(configDic['affyPipeTBI_path'],
             'callrate_filter.py')
@@ -309,10 +308,11 @@ def main(args):
     callFile_gt1, posteriorsFile_gt1, alleleSummariesFile_gt1, reportFile_gt1 = apt_genotype_axiom_exe(program,
             configDic['project_home_path'],
             configDic['analysis-files-path'],
-            configDic['xml-file-GT1'],
-            configDic['analysis-name-GT1'],
+            configDic['xml-file-GT1_2'],
+            configDic['analysis-name-GT1_2'],
             configDic['chip-type'],
-            mycellistfile_cr)
+            mycellistfile_cr,
+            'STEP2')
     reportFile_gt1 = tbi_idConvertor.cel_col(reportFile_gt1, configDic['project_id'], '\t', 0, idConvertedFile)
     tbi_uploader.aFileSymlinker(reportFile_gt1, 'Genotype.QC.report.txt', '{0}/01_QC_report'.format(configDic['project_result']))
 
@@ -325,7 +325,8 @@ def main(args):
             configDic['xml-file-SS1'],
             configDic['analysis-name-SS1'],
             configDic['chip-type'],
-            mycellistfile_cr)
+            mycellistfile_cr,
+            'SignatureSNP')
 
     ## Make PLINK, VCF, TXT files (apt-format-result)
     program = check_script(configDic['apt_path'],
@@ -334,7 +335,7 @@ def main(args):
             configDic['project_home_path'],
             callFile_gt1,
             configDic['annotation-file'],
-            configDic['analysis-name-GT1'])
+            configDic['analysis-name-GT1_2'])
 
     vcfFile = tbi_idConvertor.cel_title(vcfFile, configDic['project_id'], '\t', str('#CHROM'), idConvertedFile)
     vcfFile = tbi_idConvertor.snpId_col(vcfFile, configDic['project_id'], '\t', 2, configDic['anno-file-csv'], 2)
