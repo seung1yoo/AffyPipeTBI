@@ -110,10 +110,11 @@ def apt_genotype_axiom_exe(program, projectDir, analysisFile, xmlFile, analysisN
     posteriorsFile = '{0}/{1}.snp-posteriors.txt'.format(outDir, analysisName)
     alleleSummariesFile = '{0}/{1}.allele-summaries.txt'.format(outDir, analysisName)
     reportFile = '{0}/{1}.report.txt'.format(outDir, analysisName)
+    confidenceFile = '{0}/{1}.confidences.txt'.format(outDir, analysisName)
     logFile = '{0}/log.{1}'.format(projectDir, analysisName)
 
     if check_previous_run(outDir, callFile):
-        return callFile, posteriorsFile, alleleSummariesFile, reportFile
+        return callFile, posteriorsFile, alleleSummariesFile, reportFile, confidenceFile
 
     if analysisName in ['AxiomGT1_1', 'AxiomGT1_2']:
         cmds = [program,
@@ -148,7 +149,7 @@ def apt_genotype_axiom_exe(program, projectDir, analysisFile, xmlFile, analysisN
     data = fd_popen.read().strip()
     fd_popen.close()
 
-    return callFile, posteriorsFile, alleleSummariesFile, reportFile
+    return callFile, posteriorsFile, alleleSummariesFile, reportFile, confidenceFile
 
 def callrate_filter(program, reportFile, linkedCelDir, projectDir, callrate_cut):
     callrate_Dir = '{0}/callrate_filter'.format(projectDir)
@@ -222,13 +223,14 @@ def ped_confirm_exe(program, plink, pedFile, mapFile, projectDir):
 
     return new_pedFile, new_mapFile
 
-def snpolisher_exe(program, projectDir, snpolisher, rPath, posteriorsFile, callFile, ps2snpFile, species):
+def snpolisher_exe(program, projectDir, snpolisher, rPath, posteriorsFile, callFile, summaryFile, confidenceFile, ps2snpFile, species):
     outDir = '{0}/SNPolisher'.format(projectDir)
     performanceFile = '{0}/Ps.performance.txt'.format(outDir)
+    otvCallFile = '{0}/OTV/OTV.calls.txt'.format(outDir)
     logFile = '{0}/log.SNPolisher'.format(projectDir)
 
-    if check_previous_run(outDir, performanceFile):
-        return performanceFile
+    if check_previous_run(outDir, otvCallFile):
+        return otvCallFile
 
     cmds = ['python2.7', program,
             '--snpolisher', snpolisher,
@@ -236,6 +238,8 @@ def snpolisher_exe(program, projectDir, snpolisher, rPath, posteriorsFile, callF
             '--r', rPath,
             '--posteriorsFile', posteriorsFile,
             '--callFile', callFile,
+            '--summaryFile', summaryFile,
+            '--confidenceFile', confidenceFile,
             '--ps2snpFile', ps2snpFile,
             '--logFile', logFile,
             '--species', species]
@@ -244,7 +248,7 @@ def snpolisher_exe(program, projectDir, snpolisher, rPath, posteriorsFile, callF
     data = fd_popen.read().strip()
     fd_popen.close()
 
-    return performanceFile
+    return otvCallFile
 
 def main(args):
     #print args
@@ -286,7 +290,7 @@ def main(args):
     ## Genotype Calling (apt-genotype-axiom)
     program = check_script(configDic['apt_path'],
             'apt-genotype-axiom')
-    callFile_gt1, posteriorsFile_gt1, alleleSummariesFile_gt1, reportFile_gt1 = apt_genotype_axiom_exe(program,
+    callFile_gt1, posteriorsFile_gt1, alleleSummariesFile_gt1, reportFile_gt1, confidenceFile_gt1 = apt_genotype_axiom_exe(program,
             configDic['project_home_path'],
             configDic['analysis-files-path'],
             configDic['xml-file-GT1_1'],
@@ -305,7 +309,7 @@ def main(args):
     ## Genotype Calling (apt-genotype-axiom)
     program = check_script(configDic['apt_path'],
             'apt-genotype-axiom')
-    callFile_gt1, posteriorsFile_gt1, alleleSummariesFile_gt1, reportFile_gt1 = apt_genotype_axiom_exe(program,
+    callFile_gt1, posteriorsFile_gt1, alleleSummariesFile_gt1, reportFile_gt1, confidenceFile_gt1 = apt_genotype_axiom_exe(program,
             configDic['project_home_path'],
             configDic['analysis-files-path'],
             configDic['xml-file-GT1_2'],
@@ -319,7 +323,7 @@ def main(args):
     ## Signature SNPs (apt-genotype-axiom)
     program = check_script(configDic['apt_path'],
             'apt-genotype-axiom')
-    callFile_ss1, posteriorsFile_ss1, alleleSummariesFile_ss1, reportFile_ss1 = apt_genotype_axiom_exe(program,
+    callFile_ss1, posteriorsFile_ss1, alleleSummariesFile_ss1, reportFile_ss1, confidenceFile_ss1 = apt_genotype_axiom_exe(program,
             configDic['project_home_path'],
             configDic['analysis-files-path'],
             configDic['xml-file-SS1'],
@@ -328,14 +332,28 @@ def main(args):
             mycellistfile_cr,
             'SignatureSNP')
 
+    ## SNPolisher with OTV (Off Target Variants)
+    program = check_script(configDic['affyPipeTBI_path'],
+            'SNPolisher.py')
+    otvCallFile = snpolisher_exe(program,
+                   configDic['project_home_path'],
+                   configDic['SNPolisher_path'],
+                   configDic['R_path'],
+                   posteriorsFile_gt1,
+                   callFile_gt1,
+                   alleleSummariesFile_gt1,
+                   confidenceFile_gt1,
+                   configDic['ps2snp-file'],
+                   configDic['species'])
+
     ## Make PLINK, VCF, TXT files (apt-format-result)
     program = check_script(configDic['apt_path'],
             'apt-format-result')
     pedFile, mapFile, vcfFile, txtFile = apt_format_result_exe(program,
             configDic['project_home_path'],
-            callFile_gt1,
+            otvCallFile,
             configDic['annotation-file'],
-            configDic['analysis-name-GT1_2'])
+            configDic['project_id'])
 
     vcfFile = tbi_idConvertor.cel_title(vcfFile, configDic['project_id'], '\t', str('#CHROM'), idConvertedFile)
     vcfFile = tbi_idConvertor.snpId_col(vcfFile, configDic['project_id'], '\t', 2, configDic['anno-file-csv'], 2)
@@ -355,18 +373,6 @@ def main(args):
     pedFile = tbi_idConvertor.cel_col(pedFile, configDic['project_id'], ' ', 0, idConvertedFile)
     pedFile = tbi_idConvertor.cel_col(pedFile, configDic['project_id'], ' ', 1, idConvertedFile)
     tbi_uploader.aFileSymlinker(pedFile, 'Genotype.ped', '{0}/03_Plink'.format(configDic['project_result']))
-
-    ## SNPolisher
-    program = check_script(configDic['affyPipeTBI_path'],
-            'SNPolisher.py')
-    performanceFile = snpolisher_exe(program,
-                   configDic['project_home_path'],
-                   configDic['SNPolisher_path'],
-                   configDic['R_path'],
-                   posteriorsFile_gt1,
-                   callFile_gt1,
-                   configDic['ps2snp-file'],
-                   configDic['species'])
 
     ## Part of Results list
     print '##### RESULTs list #####'
@@ -393,7 +399,7 @@ def main(args):
     print '#RESULTs : performanceFile : {0}'.format(performanceFile)
 
     print '################################'
-    print '# AffyPipeTBI is done          #'
+    print '# AffyPipeTBI v.2.1 is done    #'
     print '# seungil.yoo@theragenetex.com #'
     print '################################'
 

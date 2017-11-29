@@ -15,14 +15,16 @@ def main(args):
         speciesType = 'diploid'
         speciesType = 'polyploid'
 
-    r_scripts = ["setwd('{0}')".format(args.workingDir),
-                 "library(methods)",
-                 "if (is.element('SNPolisher',installed.packages())){",
-                 "library(SNPolisher)}else{",
-                 "install.packages('%s',repos=NULL,type='source');library(SNPolisher)}" % (args.snpolisher),
-                 "ps.metrics <- Ps_Metrics(posteriorFile=paste('{1}'),callFile=paste('{2}'),output.metricsFile=paste('{0}','Ps_metrics.txt',sep='/'))".format(args.workingDir, args.posteriorsFile, args.callFile),
-                 "Ps_Classification(metricsFile=paste('{0}','Ps_metrics.txt',sep='/'),ps2snpFile=paste('{1}',sep=''),output.dir=paste('{0}',sep='/'),SpeciesType='{2}')".format(args.workingDir, args.ps2snpFile, speciesType),
-                 "print('ENDOK')"]
+    r_scripts = [
+        "setwd('{0}')".format(args.workingDir),
+         "library(methods)",
+         "if (is.element('SNPolisher',installed.packages())){",
+         "library(SNPolisher)}else{",
+         "install.packages('%s',repos=NULL,type='source');library(SNPolisher)}" % (args.snpolisher),
+         "ps.metrics <- Ps_Metrics(posteriorFile=paste('{1}'),callFile=paste('{2}'),output.metricsFile=paste('{0}','Ps_metrics.txt',sep='/'))".format(args.workingDir, args.posteriorsFile, args.callFile),
+         "Ps_Classification(metricsFile=paste('{0}','Ps_metrics.txt',sep='/'),ps2snpFile=paste('{1}',sep=''),output.dir=paste('{0}',sep='/'),SpeciesType='{2}')".format(args.workingDir, args.ps2snpFile, speciesType),
+         "OTV_Caller(summaryFile='{0}', posteriorFile='{1}', callFile='{2}', confidenceFile='{3}', pidFile='{4}/OffTargetVariant.ps', output.dir='{4}/OTV', OTV.only=TRUE)".format(args.summaryFile, args.posteriorsFile, args.callFile, args.confidenceFile, args.workingDir),
+         "print('ENDOK')"]
 
     out_r = open('{0}/SNPolisher.R'.format(args.workingDir), 'w')
     for r_script in r_scripts:
@@ -48,6 +50,8 @@ if __name__=='__main__':
     parser.add_argument('--workingDir')
     parser.add_argument('--posteriorsFile')
     parser.add_argument('--callFile')
+    parser.add_argument('--summaryFile')
+    parser.add_argument('--confidenceFile')
     parser.add_argument('--ps2snpFile')
     parser.add_argument('--species')
     parser.add_argument('--logFile')
