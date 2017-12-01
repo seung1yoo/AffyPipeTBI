@@ -13,6 +13,9 @@ def cel_col(infile, prjt_id, delimiter, col_idx, idConvertedFile):
 
     fName, ext = os.path.splitext(infile)
     outfile = '{0}.{1}{2}'.format(fName, prjt_id, ext)
+    if os.path.isfile(outfile):
+        return outfile
+
     out = open(outfile, 'w')
     for line in open(infile):
         items = line.strip().split(delimiter)
@@ -29,6 +32,9 @@ def cel_title(infile, prjt_id, delimiter, startText, idConvertedFile):
 
     fName, ext = os.path.splitext(infile)
     outfile = '{0}.{1}{2}'.format(fName, prjt_id, ext)
+    if os.path.isfile(outfile):
+        return outfile
+
     out = open(outfile, 'w')
     for line in open(infile):
         items = line.strip().split(delimiter)
@@ -65,6 +71,9 @@ def snpId_col(infile, prjt_id, delimiter, col_idx, annoCsvFile, annoIdx):
 
     fName, ext = os.path.splitext(infile)
     outfile = '{0}.{1}{2}'.format(fName, prjt_id, ext)
+    if os.path.isfile(outfile):
+        return outfile
+
     out = open(outfile, 'w')
     for line in open(infile):
         items = line.strip().split(delimiter)

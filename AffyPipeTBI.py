@@ -274,8 +274,16 @@ def main(args):
             configDic['xml-file-QC1'],
             configDic['analysis-name-QC1'],
             mycellistfile)
-    qc_reportFile = tbi_idConvertor.cel_col(qc_reportFile, configDic['project_id'], '\t', 0, idConvertedFile)
-    tbi_uploader.aFileSymlinker(qc_reportFile, 'Axiom.QC.report.txt', '{0}/01_QC_report'.format(configDic['project_result']))
+    qc_reportFile = tbi_idConvertor.cel_col(
+            qc_reportFile,
+            configDic['project_id'],
+            '\t', 0, idConvertedFile
+            )
+    tbi_uploader.aFileSymlinker(
+            qc_reportFile,
+            'Axiom.QC.report.txt',
+            '{0}/01_QC_report'.format(configDic['project_result'])
+            )
 
     ## DQC filter ()
     program = check_script(configDic['affyPipeTBI_path'],
@@ -298,6 +306,7 @@ def main(args):
             configDic['chip-type'],
             mycellistfile_dqc,
             'STEP1')
+
     ## Call_rate filter
     program = check_script(configDic['affyPipeTBI_path'],
             'callrate_filter.py')
@@ -306,6 +315,7 @@ def main(args):
             linkedCelDir,
             configDic['project_home_path'],
             configDic['callrate_cut'])
+
     ## Genotype Calling (apt-genotype-axiom)
     program = check_script(configDic['apt_path'],
             'apt-genotype-axiom')
@@ -320,17 +330,61 @@ def main(args):
     reportFile_gt1 = tbi_idConvertor.cel_col(reportFile_gt1, configDic['project_id'], '\t', 0, idConvertedFile)
     tbi_uploader.aFileSymlinker(reportFile_gt1, 'Genotype.QC.report.txt', '{0}/01_QC_report'.format(configDic['project_result']))
 
-    ## Signature SNPs (apt-genotype-axiom)
+    ## Make PLINK, VCF, TXT files (apt-format-result)
     program = check_script(configDic['apt_path'],
-            'apt-genotype-axiom')
-    callFile_ss1, posteriorsFile_ss1, alleleSummariesFile_ss1, reportFile_ss1, confidenceFile_ss1 = apt_genotype_axiom_exe(program,
+            'apt-format-result')
+    pedFile, mapFile, vcfFile, txtFile = apt_format_result_exe(program,
             configDic['project_home_path'],
-            configDic['analysis-files-path'],
-            configDic['xml-file-SS1'],
-            configDic['analysis-name-SS1'],
-            configDic['chip-type'],
-            mycellistfile_cr,
-            'SignatureSNP')
+            callFile_gt1,
+            configDic['annotation-file'],
+            configDic['analysis-name-GT1_2'])
+
+    vcfFile = tbi_idConvertor.cel_title(vcfFile, configDic['project_id'], '\t', str('#CHROM'), idConvertedFile)
+    vcfFile = tbi_idConvertor.snpId_col(vcfFile, configDic['project_id'], '\t', 2, configDic['anno-file-csv'], 2)
+    tbi_uploader.aFileSymlinker(
+            vcfFile,
+            '{0}.Genotype.vcf'.format(configDic['analysis-name-GT1_2']),
+            '{0}/02_Genotype'.format(configDic['project_result'])
+            )
+
+    txtFile = tbi_idConvertor.cel_title(txtFile, configDic['project_id'], '\t', str('probeset_id'), idConvertedFile)
+    txtFile = tbi_idConvertor.snpId_col(txtFile, configDic['project_id'], '\t', 0, configDic['anno-file-csv'], 2)
+    tbi_uploader.aFileSymlinker(
+            txtFile,
+            '{0}.Genotype.txt'.format(configDic['analysis-name-GT1_2']),
+            '{0}/02_Genotype'.format(configDic['project_result'])
+            )
+
+    plink = check_script(configDic['plink_path'], 'plink')
+    program = check_script(configDic['affyPipeTBI_path'], 'ped_confirm.py')
+    pedFile, mapFile = ped_confirm_exe(program, plink, pedFile, mapFile, configDic['project_home_path'])
+
+    mapFile = tbi_idConvertor.snpId_col(mapFile, configDic['project_id'], '\t', 1, configDic['anno-file-csv'], 2)
+    tbi_uploader.aFileSymlinker(
+            mapFile,
+            '{0}.Genotype.map'.format(configDic['analysis-name-GT1_2']),
+            '{0}/03_Plink'.format(configDic['project_result'])
+            )
+
+    pedFile = tbi_idConvertor.cel_col(pedFile, configDic['project_id'], ' ', 0, idConvertedFile)
+    pedFile = tbi_idConvertor.cel_col(pedFile, configDic['project_id'], ' ', 1, idConvertedFile)
+    tbi_uploader.aFileSymlinker(
+            pedFile,
+            '{0}.Genotype.ped'.format(configDic['analysis-name-GT1_2']),
+            '{0}/03_Plink'.format(configDic['project_result'])
+            )
+
+    ## Signature SNPs (apt-genotype-axiom)
+    #program = check_script(configDic['apt_path'],
+    #        'apt-genotype-axiom')
+    #callFile_ss1, posteriorsFile_ss1, alleleSummariesFile_ss1, reportFile_ss1, confidenceFile_ss1 = apt_genotype_axiom_exe(program,
+    #        configDic['project_home_path'],
+    #        configDic['analysis-files-path'],
+    #        configDic['xml-file-SS1'],
+    #        configDic['analysis-name-SS1'],
+    #        configDic['chip-type'],
+    #        mycellistfile_cr,
+    #        'SignatureSNP')
 
     ## SNPolisher with OTV (Off Target Variants)
     program = check_script(configDic['affyPipeTBI_path'],
@@ -353,53 +407,45 @@ def main(args):
             configDic['project_home_path'],
             otvCallFile,
             configDic['annotation-file'],
-            configDic['project_id'])
+            'OTV')
 
     vcfFile = tbi_idConvertor.cel_title(vcfFile, configDic['project_id'], '\t', str('#CHROM'), idConvertedFile)
     vcfFile = tbi_idConvertor.snpId_col(vcfFile, configDic['project_id'], '\t', 2, configDic['anno-file-csv'], 2)
-    tbi_uploader.aFileSymlinker(vcfFile, 'Genotype.vcf', '{0}/02_Genotype'.format(configDic['project_result']))
+    tbi_uploader.aFileSymlinker(
+            vcfFile,
+            'OTV.Genotype.vcf',
+            '{0}/02_Genotype'.format(configDic['project_result'])
+            )
 
     txtFile = tbi_idConvertor.cel_title(txtFile, configDic['project_id'], '\t', str('probeset_id'), idConvertedFile)
     txtFile = tbi_idConvertor.snpId_col(txtFile, configDic['project_id'], '\t', 0, configDic['anno-file-csv'], 2)
-    tbi_uploader.aFileSymlinker(txtFile, 'Genotype.txt', '{0}/02_Genotype'.format(configDic['project_result']))
+    tbi_uploader.aFileSymlinker(
+            txtFile,
+            'OTV.Genotype.txt',
+            '{0}/02_Genotype'.format(configDic['project_result'])
+            )
 
     plink = check_script(configDic['plink_path'], 'plink')
     program = check_script(configDic['affyPipeTBI_path'], 'ped_confirm.py')
     pedFile, mapFile = ped_confirm_exe(program, plink, pedFile, mapFile, configDic['project_home_path'])
 
     mapFile = tbi_idConvertor.snpId_col(mapFile, configDic['project_id'], '\t', 1, configDic['anno-file-csv'], 2)
-    tbi_uploader.aFileSymlinker(mapFile, 'Genotype.map', '{0}/03_Plink'.format(configDic['project_result']))
+    tbi_uploader.aFileSymlinker(
+            mapFile,
+            'OTV.Genotype.map',
+            '{0}/03_Plink'.format(configDic['project_result'])
+            )
 
     pedFile = tbi_idConvertor.cel_col(pedFile, configDic['project_id'], ' ', 0, idConvertedFile)
     pedFile = tbi_idConvertor.cel_col(pedFile, configDic['project_id'], ' ', 1, idConvertedFile)
-    tbi_uploader.aFileSymlinker(pedFile, 'Genotype.ped', '{0}/03_Plink'.format(configDic['project_result']))
-
-    ## Part of Results list
-    print '##### RESULTs list #####'
-    print '## CEL collector ##'
-    print '#RESULTs : mycellistfile : {0}'.format(mycellistfile)
-    print '#RESULTs : linkedCelDir : {0}'.format(linkedCelDir)
-    print '## QC ##'
-    print '#RESULTs : qc_reportFile : {0}'.format(qc_reportFile)
-    print '## CALLING ##'
-    print '#RESULTs : callFile_gt1 : {0}'.format(callFile_gt1)
-    print '#RESULTs : posteriorsFile_gt1 : {0}'.format(posteriorsFile_gt1)
-    print '#RESULTs : alleleSummariesFile_gt1 : {0}'.format(alleleSummariesFile_gt1)
-    print '#RESULTs : reportFile_gt1 : {0}'.format(reportFile_gt1)
-    print '#RESULTs : callFile_ss1 : {0}'.format(callFile_ss1)
-    print '#RESULTs : posteriorsFile_ss1 : {0}'.format(posteriorsFile_ss1)
-    print '#RESULTs : alleleSummariesFile_ss1 : {0}'.format(alleleSummariesFile_ss1)
-    print '#RESULTs : reportFile_ss1 : {0}'.format(reportFile_ss1)
-    print '## FORMATTING ##'
-    print '#RESULTs : pedFile : {0}'.format(pedFile)
-    print '#RESULTs : mapFile : {0}'.format(mapFile)
-    print '#RESULTs : vcfFile : {0}'.format(vcfFile)
-    print '#RESULTs : txtFile : {0}'.format(txtFile)
-    print '## SNPolisher ##'
-    print '#RESULTs : performanceFile : {0}'.format(performanceFile)
+    tbi_uploader.aFileSymlinker(
+            pedFile,
+            'OTV.Genotype.ped',
+            '{0}/03_Plink'.format(configDic['project_result'])
+            )
 
     print '################################'
-    print '# AffyPipeTBI v.2.1 is done    #'
+    print '# AffyPipeTBI v.2.2 is done    #'
     print '# seungil.yoo@theragenetex.com #'
     print '################################'
 
